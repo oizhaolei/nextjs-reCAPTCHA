@@ -1,40 +1,51 @@
-import React from "react";
-import Head from "next/head";
-import ReCAPTCHA from "react-google-recaptcha";
+import React, { useState, FC, useCallback, useEffect } from "react";
+import {
+  GoogleReCaptchaProvider,
+  useGoogleReCaptcha,
+  GoogleReCaptcha,
+} from "react-google-recaptcha-v3";
 
-export default function Home() {
-  const [email, setEmail] = React.useState("");
-  const [result, setResult] = React.useState("");
-  const recaptchaRef = React.useRef(null);
+const ReComponent = () => {
+  const { executeRecaptcha } = useGoogleReCaptcha();
+  const [token, setToken] = useState("");
+  const [email, setEmail] = useState("");
 
-  const handleChange = ({ target: { value } }) => {
-    setEmail(value);
-  };
+  const clickHandler = useCallback(async () => {
+    if (!executeRecaptcha) {
+      return;
+    }
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    // Execute the reCAPTCHA when the form is submitted
-    recaptchaRef.current.execute();
-  };
+    const result = await executeRecaptcha("homepage");
 
-  const onReCAPTCHAChange = async (captchaCode) => {
-    // If the reCAPTCHA code is null or undefined indicating that
-    // the reCAPTCHA was expired then return early
-    if (!captchaCode) {
+    console.log("result:", result);
+    setToken(result);
+
+    await onReCAPTCHAChange(result);
+  }, [email, executeRecaptcha]);
+
+  const handleTextChange = useCallback((event) => {
+    setEmail(event.target.value);
+  }, []);
+
+  const onReCAPTCHAChange = async (result) => {
+    console.log("onReCAPTCHAChange:", result);
+    if (!result) {
       return;
     }
     try {
+      const body = JSON.stringify({ email, captcha: result });
+      console.log("req.body:", body);
       const response = await fetch("/api/register", {
         method: "POST",
-        body: JSON.stringify({ email, captcha: captchaCode }),
+        body,
         headers: {
           "Content-Type": "application/json",
         },
       });
-      setResult(`${await response.text()}`);
+      console.log("response:", await response.text());
       if (response.ok) {
         // If the response is ok than show the success alert
-        console.log("Email registered successfully");
+        alert("Email registered successfully");
       } else {
         // Else throw an error with the message returned
         // from the API
@@ -42,44 +53,56 @@ export default function Home() {
         throw new Error(error.message);
       }
     } catch (error) {
-      console.log(error?.message || "Something went wrong");
+      alert(error?.message || "Something went wrong");
     } finally {
       // Reset the reCAPTCHA when the request has failed or succeeeded
       // so that it can be executed again if user submits another email.
-      recaptchaRef.current.reset();
       setEmail("");
     }
   };
 
+  useEffect(() => {
+    if (!executeRecaptcha || !email) {
+      return;
+    }
+
+    const handleReCaptchaVerify = async () => {
+      const token = await executeRecaptcha("homepage");
+      setToken(token);
+    };
+
+    handleReCaptchaVerify();
+  }, [executeRecaptcha, email]);
+
   return (
-    <div className="container">
-      <Head>
-        <title>Recaptcha with Next</title>
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
-      <div id="feedback-form">
-        <h2 className="header">Hello reCAPTCHA V3</h2>
-        <div>
-          <form onSubmit={handleSubmit}>
-            <ReCAPTCHA
-              ref={recaptchaRef}
-              size="invisible"
-              sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}
-              onChange={onReCAPTCHAChange}
-            />
-            <input
-              onChange={handleChange}
-              required
-              value={email}
-              type="email"
-              name="email"
-              placeholder="Email"
-            />
-            <button type="submit">Register</button>
-          </form>
-          <div>{result}</div>
-        </div>
+    <div>
+      <div>
+        <input
+          required
+          type="email"
+          name="email"
+          placeholder="Email"
+          onChange={handleTextChange}
+          value={email}
+        />
       </div>
+      <br />
+      <button onClick={clickHandler}>Register</button>
+      <br />
+      {token && <p>Token: {token}</p>}
     </div>
   );
-}
+};
+
+const App = () => {
+  return (
+    <GoogleReCaptchaProvider
+      language="es-AR"
+      reCaptchaKey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}
+    >
+      <ReComponent />
+    </GoogleReCaptchaProvider>
+  );
+};
+
+export default App;

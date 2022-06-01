@@ -12,6 +12,7 @@ export default async function handler(req, res) {
 
   // Extract the email and captcha code from the request body
   const { email, captcha } = body;
+  console.log("body:", body);
 
   if (method === "POST") {
     // If email or captcha are missing return an error
@@ -48,7 +49,7 @@ export default async function handler(req, res) {
         // to your backend
         await sleep();
         // Return 200 if everything is successful
-        return res.status(200).send("OK");
+        return res.status(200).send(captchaValidation);
       }
 
       return res.status(422).json({
